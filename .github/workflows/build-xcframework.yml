@@ -45,7 +45,8 @@ jobs:
           zig build \
             -Doptimize=ReleaseFast \
             -Demit-xcframework=true \
-            -Dxcframework-target=native
+            -Dxcframework-target=native \
+            -Demit-macos-app=false
         timeout-minutes: 30
 
       - name: Collect artifacts
