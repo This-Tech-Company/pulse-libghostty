@@ -1,0 +1,88 @@
+name: Build GhosttyKit XCFramework
+
+on:
+  workflow_dispatch:
+    inputs:
+      ghostty_tag:
+        description: 'Ghostty release tag to build from (e.g., v1.3.1)'
+        required: true
+      ghostty_repo:
+        description: 'Ghostty repo (override for custom forks)'
+        required: false
+        default: 'ghostty-org/ghostty'
+
+jobs:
+  build:
+    runs-on: macos-14
+    env:
+      GHOSTTY_TAG: ${{ github.event.inputs.ghostty_tag }}
+      GHOSTTY_REPO: ${{ github.event.inputs.ghostty_repo }}
+    steps:
+      - name: Checkout this repo
+        uses: actions/checkout@v4
+
+      - name: Clone Ghostty
+        run: |
+          git clone --depth 1 --branch "$GHOSTTY_TAG" \
+            "https://github.com/$GHOSTTY_REPO.git" ghostty
+
+      - name: Detect Zig version from Ghostty
+        id: zig-version
+        run: |
+          ZIG_VERSION=$(grep -oP '\.zig = "([^"]+)"' ghostty/build.zig.zon | head -1 | grep -oP '"([^"]+)"' | tr -d '"' || echo "0.14.1")
+          echo "version=$ZIG_VERSION" >> "$GITHUB_OUTPUT"
+          echo "Detected Zig version: $ZIG_VERSION"
+
+      - name: Install Zig
+        uses: mlugg/setup-zig@v2
+        with:
+          version: ${{ steps.zig-version.outputs.version }}
+
+      - name: Build GhosttyKit.xcframework (macOS arm64)
+        run: |
+          cd ghostty
+          zig build \
+            -Doptimize=ReleaseFast \
+            -Demit-xcframework=true \
+            -Dxcframework-target=native
+        timeout-minutes: 30
+
+      - name: Collect artifacts
+        run: |
+          mkdir -p output
+          if [ -d "ghostty/macos/GhosttyKit.xcframework" ]; then
+            cp -R ghostty/macos/GhosttyKit.xcframework output/
+          elif [ -d "ghostty/zig-out/lib/GhosttyKit.xcframework" ]; then
+            cp -R ghostty/zig-out/lib/GhosttyKit.xcframework output/
+          else
+            echo "ERROR: GhosttyKit.xcframework not found"
+            find ghostty -name "GhosttyKit.xcframework" -type d 2>/dev/null
+            exit 1
+          fi
+          mkdir -p output/resources
+          for dir in terminfo ghostty vim nvim fish zsh bash-completion man bat locale; do
+            cp -R "ghostty/zig-out/share/$dir" output/resources/ 2>/dev/null || true
+          done
+          cp ghostty/LICENSE output/GHOSTTY-LICENSE
+
+      - name: Package tarball
+        run: |
+          cd output
+          tar -czf ../libghostty-macos-arm64.tar.gz .
+          cd ..
+          shasum -a 256 libghostty-macos-arm64.tar.gz > SHA256SUMS
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        env:
+          TAG_NAME: ${{ github.event.inputs.ghostty_tag }}
+          REPO_NAME: ${{ github.event.inputs.ghostty_repo }}
+        with:
+          tag_name: ${{ github.event.inputs.ghostty_tag }}
+          name: "libghostty ${{ github.event.inputs.ghostty_tag }}"
+          body: |
+            Built from ghostty
+            Platform: macOS arm64
+          files: |
+            libghostty-macos-arm64.tar.gz
+            SHA256SUMS
