@@ -13,7 +13,7 @@ on:
 
 jobs:
   build:
-    runs-on: macos-14
+    runs-on: macos-15
     env:
       GHOSTTY_TAG: ${{ github.event.inputs.ghostty_tag }}
       GHOSTTY_REPO: ${{ github.event.inputs.ghostty_repo }}
@@ -29,7 +29,8 @@ jobs:
       - name: Detect Zig version from Ghostty
         id: zig-version
         run: |
-          ZIG_VERSION=$(grep -oP '\.zig = "([^"]+)"' ghostty/build.zig.zon | head -1 | grep -oP '"([^"]+)"' | tr -d '"' || echo "0.14.1")
+          ZIG_VERSION=$(sed -n 's/.*\.zig = "\([^"]*\)".*/\1/p' ghostty/build.zig.zon | head -1)
+          ZIG_VERSION="${ZIG_VERSION:-0.14.1}"
           echo "version=$ZIG_VERSION" >> "$GITHUB_OUTPUT"
           echo "Detected Zig version: $ZIG_VERSION"
 
