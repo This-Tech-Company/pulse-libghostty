@@ -29,8 +29,8 @@ jobs:
       - name: Detect Zig version from Ghostty
         id: zig-version
         run: |
-          ZIG_VERSION=$(sed -n 's/.*\.zig = "\([^"]*\)".*/\1/p' ghostty/build.zig.zon | head -1)
-          ZIG_VERSION="${ZIG_VERSION:-0.14.1}"
+          ZIG_VERSION=$(sed -n 's/.*minimum_zig_version = "\([^"]*\)".*/\1/p' ghostty/build.zig.zon | head -1)
+          ZIG_VERSION="${ZIG_VERSION:-0.15.2}"
           echo "version=$ZIG_VERSION" >> "$GITHUB_OUTPUT"
           echo "Detected Zig version: $ZIG_VERSION"
 
